@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deusa Alimentos — Inteligência Comercial</title>
+    <meta name="description" content="Plataforma de inteligência comercial para análise de mercado, mapeamento e expansão estratégica.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ========== FAR LEFT NAV (MAIN MENU) ========== -->
+    <nav id="main-nav">
+        <div class="main-nav-brand">
+            <div class="brand-mark-small">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+        </div>
+        <ul class="main-nav-list">
+            <li>
+                <button class="nav-btn active" data-target="view-dashboard" title="Dashboard Analítico">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>Dashboard</span>
+                </button>
+            </li>
+            <li>
+                <button class="nav-btn" data-target="view-map" title="Mapeamento Geoespacial">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                    <span>Mapa</span>
+                </button>
+            </li>
+        </ul>
+        <div class="main-nav-bottom">
+            <button id="btn-refresh" class="nav-btn" title="Atualizar Dados do Monitor">
+                <svg class="btn-refresh-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== MAIN LAYOUT CONTROLS ========== -->
+    <div id="app-container">
+        
+        <!-- HEADER (Global) -->
+        <header id="header">
+            <div class="header-title-area">
+                <span class="header-subtitle">Inteligência de Mercado</span>
+                <h2 class="header-main-title" id="page-title">Dashboard Analítico</h2>
+            </div>
+            <div class="header-status">
+                <div class="status-chip" id="global-status-chip">
+                    <span class="status-pulse"></span>
+                    <span id="global-status-msg">Atualizado há instantes</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- WORKSPACE (Views) -->
+        <div id="workspace">
+
+            <!-- ================= VIEW: DASHBOARD ================= -->
+            <div id="view-dashboard" class="view-layer active">
+                <div class="dashboard-scroll-area">
+                    
+                    <!-- KPI Row -->
+                    <div class="dash-kpi-row">
+                        <div class="dash-kpi-card">
+                            <div class="dash-kpi-icon total"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                            <div class="dash-kpi-data">
+                                <span class="dash-kpi-val" id="dash-kpi-total">—</span>
+                                <span class="dash-kpi-lbl">Total Mapeado</span>
+                            </div>
+                        </div>
+                        <div class="dash-kpi-card">
+                            <div class="dash-kpi-icon novos"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+                            <div class="dash-kpi-data">
+                                <span class="dash-kpi-val" id="dash-kpi-novos">—</span>
+                                <span class="dash-kpi-lbl">Novos Detectados</span>
+                            </div>
+                        </div>
+                        <div class="dash-kpi-card">
+                            <div class="dash-kpi-icon historico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+                            <div class="dash-kpi-data">
+                                <span class="dash-kpi-val" id="dash-kpi-existentes">—</span>
+                                <span class="dash-kpi-lbl">Base Receita Federal</span>
+                            </div>
+                        </div>
+                        <div class="dash-kpi-card">
+                            <div class="dash-kpi-icon cidades"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M9 8h1M9 12h1M9 16h1M14 8h1M14 12h1M14 16h1"/><rect x="5" y="2" width="14" height="19" rx="1"/></svg></div>
+                            <div class="dash-kpi-data">
+                                <span class="dash-kpi-val" id="dash-kpi-cidades">—</span>
+                                <span class="dash-kpi-lbl">Cidades Monitoradas</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Dashboard Content -->
+                    <div class="dash-grid">
+                        
+                        <!-- Left Column: Insights + Pie Chart -->
+                        <div class="dash-col-left">
+                            <div class="dash-panel insights-panel">
+                                <div class="dash-panel-header">
+                                    <h3>🤖 Insights da Inteligência</h3>
+                                </div>
+                                <div class="insights-content" id="insights-container">
+                                    <div class="skel" style="height: 40px; margin-bottom: 10px;"></div>
+                                    <div class="skel" style="height: 40px;"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="dash-panel">
+                                <div class="dash-panel-header">
+                                    <h3>Distribuição por Fonte</h3>
+                                </div>
+                                <div class="chart-wrapper pie-chart-wrapper">
+                                    <canvas id="chart-sources"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Bar Chart (Cities) -->
+                        <div class="dash-col-right">
+                            <div class="dash-panel full-height">
+                                <div class="dash-panel-header">
+                                    <h3>Concentração por Município (Top 10)</h3>
+                                </div>
+                                <div class="chart-wrapper">
+                                    <canvas id="chart-cities"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= VIEW: MAPA ================= -->
+            <div id="view-map" class="view-layer view-hidden">
+                <!-- SIDEBAR PANEL -->
+                <aside id="sidebar">
+                    <div class="panel-section panel-body">
+                        <div class="sidebar-section-label">Métricas Resumidas</div>
+                        <div class="panel-kpi-grid">
+                            <div class="kpi-mini-card">
+                                <div class="kpi-mini-data">
+                                    <span class="kpi-number" id="side-kpi-total">—</span>
+                                    <span class="kpi-title">Mapeados</span>
+                                </div>
+                            </div>
+                            <div class="kpi-mini-card">
+                                <div class="kpi-mini-data">
+                                    <span class="kpi-number" id="side-kpi-novos">—</span>
+                                    <span class="kpi-title">Novos</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-separator"></div>
+
+                        <div class="sidebar-section-label">Filtros Avançados</div>
+                        <div class="panel-search-controls">
+                            <div class="input-search-wrapper">
+                                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="input-busca" placeholder="Buscar mercado ou CNPJ..." autocomplete="off">
+                            </div>
+                            <div class="filter-group">
+                                <select id="filter-tipo" class="premium-select">
+                                    <option value="todos">Todos os tipos de ponto</option>
+                                    <option value="novo">Novos detectados</option>
+                                    <option value="existente">Cadastrados (Histórico RF)</option>
+                                    <option value="osm">OpenStreetMap</option>
+                                </select>
+                                <select id="filter-cidade" class="premium-select">
+                                    <option value="">Todas as Cidades</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-separator"></div>
+
+                        <div class="panel-legend-area">
+                            <div class="sidebar-section-label">Legenda</div>
+                            <div class="panel-legend">
+                                <span class="legend-tag"><i class="ldot ldot--novo"></i>Novos</span>
+                                <span class="legend-tag"><i class="ldot ldot--cad"></i>Base RF</span>
+                                <span class="legend-tag"><i class="ldot ldot--osm"></i>OSM</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-results-header">
+                        <span class="sidebar-section-label">Lista de Resultados</span>
+                        <span class="results-count" id="results-count"></span>
+                    </div>
+
+                    <div id="card-list" class="card-list-wrapper">
+                        <!-- Populated by JS -->
+                        <div class="skeleton-list">
+                            <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- MAP AREA -->
+                <section id="map-area">
+                    <div class="map-card-wrapper">
+                        <div class="map-header">
+                            <div class="map-title-row">
+                                <div class="map-title">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                    Mapeamento Geoespacial
+                                </div>
+                            </div>
+                        </div>
+                        <div id="map"></div>
+                    </div>
+                </section>
+            </div>
+
+        </div> <!-- /#workspace -->
+    </div> <!-- /#app-container -->
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# Ambientes Virtuais e Cache do Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs e Editores de Código
+.vscode/
+.idea/
+*.swp
+
+# Arquivos do Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# -------------------------------------------------------------
+# DADOS DO PROJETO - Segurança & Prevenção de Arquivos Pesados
+# -------------------------------------------------------------
+
+# A base da Receita Federal pode ter Gigabytes, não deve ir pro Git
+dados.csv
+*.csv
+
+# Caches de estado contínuo (armazenam informações de runtime locais)
+geocache.json
+historico.json
+
+# Se no futuro for salvo algum log
+*.log
