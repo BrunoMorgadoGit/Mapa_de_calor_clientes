@@ -1,6 +1,6 @@
 /**
- * Deusa Alimentos — Commercial Intelligence Platform
- * Enterprise-grade frontend application.
+ * Deusa Alimentos — Plataforma de Inteligência Comercial
+ * Frontend Application com autenticação e módulos.
  */
 
 // ============================================================
@@ -13,19 +13,83 @@ const ZOOM = 14;
 // ============================================================
 //  STATE & GLOBALS
 // ============================================================
-const state = { rf: [], osm: [] };
+const state = { rf: [], osm: [], user: null };
 let map, pins;
 let chartSources, chartCities;
 
 // ============================================================
 //  INIT
 // ============================================================
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+    // Auth guard — check if user is logged in
+    const authed = await checkAuth();
+    if (!authed) {
+        window.location.href = "/login";
+        return;
+    }
+
     initNavigation();
     initMap();
     bindEvents();
     loadAll();
+
+    // Load commercial module data if user has access
+    if (state.user && state.user.modulos.includes("comercial")) {
+        loadComercialData();
+    }
 });
+
+// ============================================================
+//  AUTHENTICATION
+// ============================================================
+async function checkAuth() {
+    try {
+        const res = await fetch(API + "/api/me", { credentials: "include" });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data.autenticado) return false;
+
+        state.user = data.usuario;
+        applyUserProfile(data.usuario);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function applyUserProfile(user) {
+    // Display user info in header
+    const nameEl = $("user-display-name");
+    const badgeEl = $("user-display-perfil");
+    if (nameEl) nameEl.textContent = user.nome;
+    if (badgeEl) badgeEl.textContent = user.perfil;
+
+    // Show only allowed modules in nav
+    const modulos = user.modulos || [];
+    document.querySelectorAll("#main-nav .main-nav-list li[data-module]").forEach(li => {
+        const mod = li.getAttribute("data-module");
+        if (!modulos.includes(mod)) {
+            li.style.display = "none";
+        } else {
+            li.style.display = "";
+        }
+    });
+
+    // Navigate to the user's first allowed module
+    // (e.g. LOGISTICA opens directly on Mapa instead of Dashboard)
+    const firstAllowed = document.querySelector(`#main-nav li[data-module="${modulos[0]}"] .nav-btn`);
+    if (firstAllowed) {
+        document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+        firstAllowed.click();
+    }
+}
+
+async function logout() {
+    try {
+        await fetch(API + "/api/logout", { method: "POST", credentials: "include" });
+    } catch (e) { /* ignore */ }
+    window.location.href = "/login";
+}
 
 // ============================================================
 //  NAVIGATION (TABS)
@@ -34,18 +98,12 @@ function initNavigation() {
     const navBtns = document.querySelectorAll(".main-nav-list .nav-btn");
     navBtns.forEach(btn => {
         btn.addEventListener("click", () => {
-            // Update active state on buttons
             navBtns.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
 
-            // Switch views
             const targetId = btn.getAttribute("data-target");
             document.querySelectorAll(".view-layer").forEach(v => v.classList.add("view-hidden"));
             document.getElementById(targetId).classList.remove("view-hidden");
-
-            // Update title
-            const title = targetId === "view-dashboard" ? "Dashboard Analítico" : "Mapeamento Estratégico";
-            $("page-title").textContent = title;
 
             // Trigger map resize if map became visible
             if (targetId === "view-map" && map) {
@@ -59,9 +117,11 @@ function initNavigation() {
 //  MAP
 // ============================================================
 function initMap() {
-    map = L.map("map", { center: CENTER, zoom: ZOOM, zoomControl: true });
+    map = L.map("map", { center: CENTER, zoom: ZOOM, zoomControl: false });
 
-    // CartoDB Voyager — clean, light, professional basemap
+    // Zoom control on top-right to avoid sidebar overlap
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
     L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
         {
@@ -81,9 +141,27 @@ function bindEvents() {
     $("input-busca").addEventListener("input", debounce(render, 180));
     $("filter-tipo").addEventListener("change", render);
     $("filter-cidade").addEventListener("change", render);
+
+    const filterCliente = $("filter-cliente");
+    if (filterCliente) filterCliente.addEventListener("change", render);
+
     $("btn-refresh").addEventListener("click", runMonitor);
-    // Global Header refresh also runs monitor
-    document.querySelector("#main-nav .main-nav-bottom .nav-btn").addEventListener("click", runMonitor);
+
+    const rs = document.querySelector("#main-nav .main-nav-bottom .nav-btn");
+    if (rs) rs.addEventListener("click", runMonitor);
+
+    // Sidebar toggle
+    const toggleBtn = $("btn-toggle-sidebar");
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            const sidebar = $("sidebar");
+            if (sidebar) sidebar.classList.toggle("collapsed");
+        });
+    }
+
+    // Logout
+    const logoutBtn = $("btn-logout");
+    if (logoutBtn) logoutBtn.addEventListener("click", logout);
 }
 
 // ============================================================
@@ -103,6 +181,7 @@ async function loadAll() {
                 ...m,
                 src: "rf",
                 status: m.is_novo ? "novo" : "existente",
+                status_cliente: m.status_cliente || "NAO_CLIENTE",
             }));
         }
 
@@ -111,6 +190,7 @@ async function loadAll() {
                 ...m,
                 src: "osm",
                 status: "osm",
+                status_cliente: "NAO_CLIENTE",
             }));
         }
 
@@ -128,7 +208,11 @@ async function loadAll() {
 }
 
 async function api(path) {
-    const r = await fetch(API + path);
+    const r = await fetch(API + path, { credentials: "include" });
+    if (r.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Not authenticated");
+    }
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
 }
@@ -146,11 +230,13 @@ function render() {
 function filtered() {
     const tipo = $("filter-tipo").value;
     const cidade = $("filter-cidade").value;
+    const clienteFilter = $("filter-cliente") ? $("filter-cliente").value : "";
     const q = $("input-busca").value.toLowerCase().trim();
 
     let d = [...state.rf, ...state.osm];
     if (tipo !== "todos") d = d.filter((m) => m.status === tipo);
     if (cidade) d = d.filter((m) => (m.cidade || "").toLowerCase() === cidade.toLowerCase());
+    if (clienteFilter) d = d.filter((m) => m.status_cliente === clienteFilter);
     if (q)
         d = d.filter(
             (m) =>
@@ -165,26 +251,52 @@ function filtered() {
 // ============================================================
 //  MAP VISUALS & CARDS
 // ============================================================
+function getPinClass(m) {
+    if (m.src === "osm") return "pin-osm";
+    if (m.status_cliente === "ATIVO") return "pin-ativo";
+    if (m.status_cliente === "INATIVO") return "pin-inativo";
+    if (m.status === "novo") return "pin-novo";
+    return "pin-existente";
+}
+
 function drawPins(data) {
     pins.clearLayers();
     data.forEach((m) => {
         if (!m.lat || !m.lng) return;
-        const sz = m.status === "novo" ? 14 : 11;
+        const sz = m.status_cliente === "ATIVO" ? 14 : m.status === "novo" ? 14 : 11;
         const icon = L.divIcon({
-            className: `pin-${m.status}`,
+            className: getPinClass(m),
             iconSize: [sz, sz],
             iconAnchor: [sz / 2, sz / 2],
             popupAnchor: [0, -(sz / 2) - 6],
         });
         L.marker([m.lat, m.lng], { icon })
             .addTo(pins)
-            .bindPopup(popupHTML(m), { maxWidth: 300, minWidth: 220 });
+            .bindPopup(popupHTML(m), { maxWidth: 300, minWidth: 240 });
     });
 }
 
 function popupHTML(m) {
+    const statusLabel = {
+        "ATIVO": "✅ Cliente Ativo",
+        "INATIVO": "⏸️ Inativo",
+        "NAO_CLIENTE": "🔵 Não Cliente"
+    };
+    const clienteStatus = statusLabel[m.status_cliente] || "🔵 Não Cliente";
+
+    const canClassify = state.user && (state.user.perfil === "ADMIN" || state.user.perfil === "COMERCIAL");
+
+    let classifyBtns = "";
+    if (canClassify && m.cnpj) {
+        classifyBtns = `<div class="popup-classify-btns">
+            <button class="popup-classify-btn green" onclick="classificarCliente('${m.cnpj}','ATIVO')">✅ Ativo</button>
+            <button class="popup-classify-btn gray" onclick="classificarCliente('${m.cnpj}','INATIVO')">⏸️ Inativo</button>
+        </div>`;
+    }
+
     return `<div class="popup-card">
         <h3>${esc(m.nome || "Sem nome")}</h3>
+        <div style="font-size:.65rem;font-weight:700;color:var(--slate-500);margin-bottom:8px;">${clienteStatus}</div>
         <div class="popup-card-rows">
             <div class="popup-row">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -196,11 +308,34 @@ function popupHTML(m) {
             </div>` : ""}
         </div>
         ${m.cnpj ? `<div class="popup-card-cnpj">CNPJ ${fmtCnpj(m.cnpj)}</div>` : ""}
-        <div class="popup-card-actions">
-            <button class="popup-btn" onclick="zoomTo(${m.lat},${m.lng})">Aproximar Local</button>
-        </div>
+        ${classifyBtns}
     </div>`;
 }
+
+async function classificarCliente(cnpj, status) {
+    try {
+        const res = await fetch(API + "/api/clientes/classificar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ cnpj, status }),
+        });
+        const data = await res.json();
+        if (data.sucesso) {
+            // Update local state
+            [...state.rf].forEach(m => {
+                if (m.cnpj === cnpj) m.status_cliente = status;
+            });
+            render();
+            updateKPIs();
+            // Close any open popup
+            map.closePopup();
+        }
+    } catch (e) {
+        console.error("Falha ao classificar:", e);
+    }
+}
+window.classificarCliente = classificarCliente;
 
 function drawCards(data) {
     const el = $("card-list");
@@ -215,11 +350,11 @@ function drawCards(data) {
     el.innerHTML = data
         .map(
             (m, i) => `<div class="m-card" data-i="${i}" onclick="selectCard(${i},${m.lat || 0},${m.lng || 0})">
-        <div class="m-card-stripe ${m.status}"></div>
+        <div class="m-card-stripe ${m.status_cliente === 'ATIVO' ? 'novo' : m.status}"></div>
         <div class="m-card-body">
             <div class="m-card-top">
                 <span class="m-card-name">${esc(m.nome || "Sem nome")}</span>
-                <span class="m-card-badge ${m.status}">${m.status === "novo" ? "Novo" : m.status === "existente" ? "Histórico RF" : "OSM"}</span>
+                <span class="m-card-badge ${m.status}">${m.status_cliente === "ATIVO" ? "Cliente" : m.status === "novo" ? "Novo" : m.status === "existente" ? "RF" : "OSM"}</span>
             </div>
             <div class="m-card-addr">${esc(m.endereco || "—")}</div>
             <div class="m-card-meta">
@@ -260,16 +395,14 @@ window.zoomTo = zoomTo;
 function updateKPIs() {
     const total = state.rf.length + state.osm.length;
     const novos = state.rf.filter(m => m.status === "novo").length;
-    const existentes = state.rf.filter(m => m.status === "existente").length;
+    const clientesAtivos = state.rf.filter(m => m.status_cliente === "ATIVO").length;
     const cidadesCount = new Set([...state.rf, ...state.osm].map(m => (m.cidade || "").toLowerCase()).filter(Boolean)).size;
 
-    // Dashboard View KPIs
     animNum("dash-kpi-total", total);
     animNum("dash-kpi-novos", novos);
-    animNum("dash-kpi-existentes", existentes);
+    animNum("dash-kpi-clientes", clientesAtivos);
     animNum("dash-kpi-cidades", cidadesCount);
 
-    // Map Sidebar KPIs (Mini)
     animNum("side-kpi-total", total);
     animNum("side-kpi-novos", novos);
 }
@@ -277,27 +410,26 @@ function updateKPIs() {
 function renderCharts() {
     if (!window.Chart) return;
 
-    // Chart Design System Tokens (matching style.css)
-    const C_EMERALD = "#10b981";
-    const C_BLUE = "#3b82f6";
-    const C_AMBER = "#f59e0b";
-    const C_SLATE = "#94a3b8";
+    const BRAND_YELLOW = "#FFD500";
+    const BRAND_RED = "#E30613";
+    const BRAND_BLUE = "#0057A4";
+    const EMERALD = "#10b981";
 
-    // 1. Source/Status Dist. Chart (Pie/Doughnut)
     const cntNovos = state.rf.filter(m => m.status === "novo").length;
     const cntExistentes = state.rf.filter(m => m.status === "existente").length;
     const cntOsm = state.osm.length;
+    const cntAtivos = state.rf.filter(m => m.status_cliente === "ATIVO").length;
 
     const ctxSrc = document.getElementById('chart-sources').getContext('2d');
     if (chartSources) chartSources.destroy();
-    
+
     chartSources = new Chart(ctxSrc, {
         type: 'doughnut',
         data: {
-            labels: ['Novos (RF)', 'Histórico (RF)', 'OpenStreetMap'],
+            labels: ['Clientes Ativos', 'Novos (RF)', 'Histórico (RF)', 'OpenStreetMap'],
             datasets: [{
-                data: [cntNovos, cntExistentes, cntOsm],
-                backgroundColor: [C_EMERALD, C_BLUE, C_AMBER],
+                data: [cntAtivos, cntNovos, cntExistentes, cntOsm],
+                backgroundColor: [EMERALD, BRAND_YELLOW, BRAND_BLUE, BRAND_RED],
                 borderWidth: 0,
                 hoverOffset: 4
             }]
@@ -312,7 +444,7 @@ function renderCharts() {
         }
     });
 
-    // 2. City Concentration Chart (Bar)
+    // City Concentration Chart
     const cityCounts = {};
     [...state.rf, ...state.osm].forEach(m => {
         if(m.cidade) {
@@ -323,7 +455,7 @@ function renderCharts() {
 
     const sortedCities = Object.entries(cityCounts)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 10); // top 10
+        .slice(0, 10);
 
     const ctxCities = document.getElementById('chart-cities').getContext('2d');
     if (chartCities) chartCities.destroy();
@@ -335,8 +467,8 @@ function renderCharts() {
             datasets: [{
                 label: ' Volume de Mercados',
                 data: sortedCities.map(c => c[1]),
-                backgroundColor: C_BLUE,
-                borderRadius: 4
+                backgroundColor: BRAND_BLUE,
+                borderRadius: 6
             }]
         },
         options: {
@@ -355,13 +487,13 @@ function generateInsights() {
     const els = document.getElementById("insights-container");
     const total = state.rf.length + state.osm.length;
     const novos = state.rf.filter(m => m.status === "novo").length;
+    const clientesAtivos = state.rf.filter(m => m.status_cliente === "ATIVO").length;
 
     if (total === 0) {
         els.innerHTML = `<p class="insight-text">Sem dados suficientes para gerar insights operacionais.</p>`;
         return;
     }
 
-    // Calc dominant city
     const cityCounts = {};
     [...state.rf, ...state.osm].forEach(m => {
         if(m.cidade) {
@@ -369,40 +501,113 @@ function generateInsights() {
             cityCounts[c] = (cityCounts[c] || 0) + 1;
         }
     });
-    
+
     let topCity = { name: "Desconhecida", count: 0 };
     Object.entries(cityCounts).forEach(([name, count]) => {
         if(count > topCity.count) topCity = { name, count };
     });
 
     const percentCity = Math.round((topCity.count / total) * 100);
-    
+    const taxaConversao = total > 0 ? Math.round((clientesAtivos / total) * 100) : 0;
+
     let html = "";
 
-    // Insight 1: Novos vs Existing
-    if (novos > 0) {
+    if (clientesAtivos > 0) {
         html += `<div class="insight-item positive">
-            <p class="insight-text">Aumento na cobertura! <strong>${novos} novos mercados</strong> foram detectados recentemente via Receita Federal, indicando potenciais aberturas de pontos de venda.</p>
-        </div>`;
-    } else {
-        html += `<div class="insight-item">
-            <p class="insight-text">A rede mapeada estabilizou em <strong>${total} estabelecimentos</strong> totais. Nenhuma alteração recente detectada na malha da Receita Federal.</p>
+            <p class="insight-text">Taxa de conversão: <strong>${taxaConversao}%</strong> dos estabelecimentos mapeados são clientes ativos. ${taxaConversao < 30 ? "Há grande potencial de expansão!" : "Boa cobertura comercial."}</p>
         </div>`;
     }
 
-    // Insight 2: Concentration
+    if (novos > 0) {
+        html += `<div class="insight-item positive">
+            <p class="insight-text"><strong>${novos} novos mercados</strong> detectados via Receita Federal — potenciais aberturas de pontos de venda.</p>
+        </div>`;
+    }
+
     if(topCity.count > 0) {
         html += `<div class="insight-item">
-            <p class="insight-text">O município de <strong>${topCity.name}</strong> possui a maior concentração de pontos, abrigando <strong>${percentCity}%</strong> (${topCity.count}) de toda a base mapeada.</p>
+            <p class="insight-text"><strong>${topCity.name}</strong> concentra <strong>${percentCity}%</strong> (${topCity.count}) da base mapeada.</p>
         </div>`;
     }
 
     els.innerHTML = html;
 }
 
-// Utilities for naming
 function processCityName(cName) {
-    return cName.split(' ')[0].replace(/[^a-zA-ZáàâãéèêíïóôõöúçñÁÀÂÃÉÈÍÏÓÔÕÖÚÇÑ]/g, ""); // Fast simple sanitize to avoid huge names breaking UI
+    return cName.split(' ')[0].replace(/[^a-zA-ZáàâãéèêíïóôõöúçñÁÀÂÃÉÈÍÏÓÔÕÖÚÇÑ]/g, "");
+}
+
+// ============================================================
+//  COMERCIAL MODULE
+// ============================================================
+async function loadComercialData() {
+    try {
+        const [scoreRes] = await Promise.allSettled([
+            api("/api/inteligencia/score"),
+        ]);
+
+        if (scoreRes.status === "fulfilled" && scoreRes.value.sucesso) {
+            renderScoreTable(scoreRes.value.scores);
+        }
+
+        renderOportunidades();
+    } catch(e) {
+        console.error("Erro ao carregar dados comerciais:", e);
+    }
+}
+
+function renderScoreTable(scores) {
+    const tbody = $("score-table-body");
+    if (!tbody) return;
+
+    if (!scores || scores.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:#94a3b8">Sem dados regionais disponíveis</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = scores.map(s => {
+        const scoreClass = s.score >= 70 ? "score-high" : s.score >= 40 ? "score-medium" : "score-low";
+        return `<tr>
+            <td style="font-weight:700">${esc(s.cidade)}</td>
+            <td>${s.total}</td>
+            <td>${s.clientes}</td>
+            <td>${s.nao_clientes}</td>
+            <td>
+                <div style="display:flex; align-items:center; gap:8px" class="${scoreClass}">
+                    <div class="score-bar-bg" style="width:80px">
+                        <div class="score-bar-fill" style="width:${s.score}%"></div>
+                    </div>
+                    <span class="score-value">${s.score}</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join("");
+}
+
+function renderOportunidades() {
+    const el = $("oportunidades-list");
+    if (!el) return;
+
+    const naoClientes = state.rf.filter(m => m.status_cliente !== "ATIVO" && m.cnpj);
+    if (naoClientes.length === 0) {
+        el.innerHTML = `<div style="padding:24px; text-align:center; color:#94a3b8; font-size:.85rem">
+            Todos os estabelecimentos mapeados já são clientes!</div>`;
+        return;
+    }
+
+    el.innerHTML = naoClientes.slice(0, 20).map(m => `
+        <div class="oport-card">
+            <div class="oport-info">
+                <div class="oport-nome">${esc(m.nome || "Sem nome")}</div>
+                <div class="oport-cidade">${esc(m.cidade || "")}${m.uf ? " · " + m.uf : ""} · CNPJ: ${fmtCnpj(m.cnpj)}</div>
+            </div>
+            <div class="oport-actions">
+                <button class="btn-classificar" onclick="classificarCliente('${m.cnpj}','ATIVO')">
+                    ✅ Marcar como Cliente
+                </button>
+            </div>
+        </div>
+    `).join("");
 }
 
 // ============================================================
@@ -411,7 +616,7 @@ function processCityName(cName) {
 async function runMonitor() {
     document.querySelectorAll(".btn-refresh").forEach(b => b.classList.add("loading"));
     setGlobalStatus("Monitoramento em andamento...", "loading");
-    
+
     try {
         const d = await api("/api/processar");
         if (d.sucesso) {
@@ -420,7 +625,9 @@ async function runMonitor() {
             setGlobalStatus("Falha na atualização", "err");
         }
     } catch (e) {
-        setGlobalStatus("Falha de conexão com a API", "err");
+        if (e.message !== "Not authenticated") {
+            setGlobalStatus("Falha de conexão com a API", "err");
+        }
     } finally {
         document.querySelectorAll(".btn-refresh").forEach(b => b.classList.remove("loading"));
     }
@@ -430,7 +637,7 @@ function fillCityFilter() {
     const set = new Set();
     [...state.rf, ...state.osm].forEach((m) => m.cidade && set.add(m.cidade));
     const sel = $("filter-cidade");
-    sel.innerHTML = '<option value="">Todas as Cidades</option>'; // reset
+    sel.innerHTML = '<option value="">Todas as Cidades</option>';
     [...set].sort().forEach((c) => {
         const o = document.createElement("option");
         o.value = c;

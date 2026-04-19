@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Deusa Alimentos</title>
+    <meta name="description" content="Acesso à plataforma de inteligência comercial Deusa Alimentos.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.08);
+            padding: 48px 40px 40px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-logo img {
+            height: 56px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .login-subtitle {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #0057A4;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .login-title {
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 32px;
+            letter-spacing: -0.025em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            background: #f8fafc;
+            outline: none;
+            transition: all 0.2s;
+            color: #1e293b;
+        }
+        .form-input:focus {
+            border-color: #0057A4;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(0,87,164,0.1);
+        }
+        .form-input::placeholder {
+            color: #94a3b8;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            background: #0057A4;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(.4, 0, .2, 1);
+            margin-top: 8px;
+            letter-spacing: 0.02em;
+        }
+        .login-btn:hover {
+            background: #004b8d;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0,87,164,0.3);
+        }
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        .login-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .login-error {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+            color: #dc2626;
+            font-weight: 600;
+            text-align: center;
+        }
+        .login-error.visible {
+            display: block;
+            animation: shake 0.4s ease;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .login-divider {
+            height: 4px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #FFD500, #E30613, #0057A4);
+            margin: 0 -40px 32px;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        @media(max-width:480px) {
+            .login-card { padding: 32px 24px 28px; border-radius: 16px; }
+            .login-divider { margin: 0 -24px 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <img src="logodeusa.png" alt="Deusa Alimentos">
+            </div>
+            <div class="login-divider"></div>
+            <p class="login-subtitle">Plataforma de Inteligência</p>
+            <h1 class="login-title">Acessar Sistema</h1>
+
+            <div id="login-error" class="login-error">
+                Usuário ou senha incorretos.
+            </div>
+
+            <form id="login-form" autocomplete="on">
+                <div class="form-group">
+                    <label class="form-label" for="username">Usuário</label>
+                    <input class="form-input" type="text" id="username" name="username"
+                           placeholder="Seu usuário" autocomplete="username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Senha</label>
+                    <input class="form-input" type="password" id="password" name="password"
+                           placeholder="Sua senha" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="login-btn" id="login-btn">Entrar</button>
+            </form>
+
+            <p class="login-footer">Deusa Alimentos © 2026 · Inteligência Comercial</p>
+        </div>
+    </div>
+
+    <script>
+        // Verificar se já está logado
+        fetch("/api/me").then(r => {
+            if (r.ok) window.location.href = "/";
+        });
+
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById("login-btn");
+            const errEl = document.getElementById("login-error");
+
+            btn.disabled = true;
+            btn.textContent = "Verificando...";
+            errEl.classList.remove("visible");
+
+            try {
+                const res = await fetch("/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        username: document.getElementById("username").value.trim(),
+                        password: document.getElementById("password").value,
+                    }),
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.sucesso) {
+                    btn.textContent = "Redirecionando...";
+                    window.location.href = "/";
+                } else {
+                    errEl.textContent = data.erro || "Credenciais inválidas";
+                    errEl.classList.add("visible");
+                    btn.disabled = false;
+                    btn.textContent = "Entrar";
+                }
+            } catch (err) {
+                errEl.textContent = "Falha de conexão com o servidor";
+                errEl.classList.add("visible");
+                btn.disabled = false;
+                btn.textContent = "Entrar";
+            }
+        });
+    </script>
+</body>
+</html>
