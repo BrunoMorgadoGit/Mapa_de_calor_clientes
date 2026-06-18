@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SALES
+}
+
+enum LeadStatus {
+  NEW
+  NO_CONTACT
+  CONTACTED
+  INTERESTED
+  NEGOTIATION
+  CONVERTED
+  NOT_INTERESTED
+  INACTIVE
+}
+
+enum PotentialLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ImportStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  ERROR
+}
+
+model User {
+  id            String            @id @default(cuid())
+  name          String
+  email         String            @unique
+  passwordHash  String
+  role          UserRole          @default(SALES)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  assignedLeads Lead[]            @relation("LeadAssignee")
+  interactions  LeadInteraction[]
+
+  @@map("users")
+}
+
+model City {
+  id        String   @id @default(cuid())
+  name      String
+  uf        String
+  ibgeCode  String?  @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, uf])
+  @@map("cities")
+}
+
+model Cnae {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String
+  category    String?
+  isTarget    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("cnaes")
+}
+
+model Company {
+  id                String        @id @default(cuid())
+  cnpj              String        @unique
+  razaoSocial       String
+  nomeFantasia      String?
+  situacaoCadastral String
+  porte             String?
+  matrizFilial      String?
+  dataAbertura      DateTime?
+  cnaePrincipal     String?
+  uf                String
+  cidade            String
+  bairro            String?
+  cep               String?
+  logradouro        String?
+  numero            String?
+  complemento       String?
+  latitude          Float?
+  longitude         Float?
+  source            String        @default("manual")
+  lastSyncAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  cnaes             CompanyCnae[]
+  lead              Lead?
+
+  @@index([cidade, uf])
+  @@index([cnaePrincipal])
+  @@index([situacaoCadastral])
+  @@map("companies")
+}
+
+model CompanyCnae {
+  id        String  @id @default(cuid())
+  companyId String
+  cnaeCode  String
+  isPrimary Boolean @default(false)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, cnaeCode])
+  @@index([cnaeCode])
+  @@map("company_cnaes")
+}
+
+model Lead {
+  id             String            @id @default(cuid())
+  companyId      String            @unique
+  status         LeadStatus         @default(NEW)
+  score          Int               @default(0)
+  potentialLevel PotentialLevel     @default(LOW)
+  assignedToId   String?
+  notes          String?
+  lastContactAt  DateTime?
+  nextActionAt   DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedTo     User?             @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  interactions   LeadInteraction[]
+
+  @@index([status])
+  @@index([potentialLevel])
+  @@index([score])
+  @@map("leads")
+}
+
+model LeadInteraction {
+  id          String   @id @default(cuid())
+  leadId      String
+  userId      String
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([userId])
+  @@map("lead_interactions")
+}
+
+model ImportJob {
+  id           String       @id @default(cuid())
+  uf           String
+  cityName     String
+  cityIbgeCode String?
+  cnaeCode     String
+  status       ImportStatus @default(PENDING)
+  totalFound   Int          @default(0)
+  totalSaved   Int          @default(0)
+  errorMessage String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([status])
+  @@index([cityName, uf])
+  @@map("import_jobs")
+}
